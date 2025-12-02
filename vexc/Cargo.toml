@@ -2,8 +2,14 @@
 name = "vexc"
 version = "0.1.0"
 edition = "2024"
+description = "Compiler and toolchain for the Vex programming language"
+documentation = "https://docs.rs/vexc"
+readme = "../README.md"
+homepage = "https://github.com/PizzaLvr49/vex-lang"
+repository = "https://github.com/PizzaLvr49/vex-lang"
+license = "MIT"
+keywords = ["compiler", "programming-language", "lexer", "parser"]
+categories = ["compilers", "parser-implementations", "development-tools"]
 
 [dependencies]
-clap = { workspace = true }
-itertools = { workspace = true }
 thiserror = { workspace = true }
