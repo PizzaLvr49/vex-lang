@@ -10,7 +10,7 @@ use thiserror::Error;
 ///
 /// Literals are constant values that appear directly in the source code,
 /// such as numbers, strings, and boolean values.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
     /// A string literal enclosed in double quotes.
     ///
@@ -41,7 +41,7 @@ pub enum Literal {
 /// Tokens represent the smallest meaningful units of Vex source code after
 /// lexical analysis. Each token corresponds to a keyword, operator, literal,
 /// identifier, or structural element.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     /// The `let` keyword used for variable declarations.
     Let,
@@ -390,40 +390,31 @@ mod test {
     fn test_identifier() {
         let mut lexer = Lexer::new("myVar");
         let token = lexer.next_token().unwrap();
-        match token {
-            Token::Identifier(s) => assert_eq!(s, "myVar"),
-            _ => panic!("Expected identifier"),
-        }
+        assert_eq!(token, Token::Identifier("myVar".to_string()));
     }
 
     #[test]
     fn test_identifier_with_underscore() {
         let mut lexer = Lexer::new("_my_var_123");
         let token = lexer.next_token().unwrap();
-        match token {
-            Token::Identifier(s) => assert_eq!(s, "_my_var_123"),
-            _ => panic!("Expected identifier"),
-        }
+        assert_eq!(token, Token::Identifier("_my_var_123".to_string()));
     }
 
     #[test]
     fn test_string_literal() {
         let mut lexer = Lexer::new(r#""hello world""#);
         let token = lexer.next_token().unwrap();
-        match token {
-            Token::Literal(Literal::String(s)) => assert_eq!(s, "hello world"),
-            _ => panic!("Expected string literal"),
-        }
+        assert_eq!(
+            token,
+            Token::Literal(Literal::String("hello world".to_string()))
+        );
     }
 
     #[test]
     fn test_empty_string() {
         let mut lexer = Lexer::new(r#""""#);
         let token = lexer.next_token().unwrap();
-        match token {
-            Token::Literal(Literal::String(s)) => assert_eq!(s, ""),
-            _ => panic!("Expected empty string literal"),
-        }
+        assert_eq!(token, Token::Literal(Literal::String("".to_string())));
     }
 
     #[test]
@@ -437,60 +428,42 @@ mod test {
     fn test_positive_integer() {
         let mut lexer = Lexer::new("42");
         let token = lexer.next_token().unwrap();
-        match token {
-            Token::Literal(Literal::Number(n)) => assert_eq!(n, 42.0),
-            _ => panic!("Expected number literal"),
-        }
+        assert_eq!(token, Token::Literal(Literal::Number(42.0)));
     }
 
     #[test]
     fn test_negative_integer() {
         let mut lexer = Lexer::new("-42");
         let token = lexer.next_token().unwrap();
-        match token {
-            Token::Literal(Literal::Number(n)) => assert_eq!(n, -42.0),
-            _ => panic!("Expected number literal"),
-        }
+        assert_eq!(token, Token::Literal(Literal::Number(-42.0)));
     }
 
     #[test]
     fn test_float() {
         let mut lexer = Lexer::new("2.14159");
         let token = lexer.next_token().unwrap();
-        match token {
-            Token::Literal(Literal::Number(n)) => assert_eq!(n, 2.14159),
-            _ => panic!("Expected number literal"),
-        }
+        assert_eq!(token, Token::Literal(Literal::Number(2.14159)));
     }
 
     #[test]
     fn test_negative_float() {
         let mut lexer = Lexer::new("-2.5");
         let token = lexer.next_token().unwrap();
-        match token {
-            Token::Literal(Literal::Number(n)) => assert_eq!(n, -2.5),
-            _ => panic!("Expected number literal"),
-        }
+        assert_eq!(token, Token::Literal(Literal::Number(-2.5)));
     }
 
     #[test]
     fn test_bool_true() {
         let mut lexer = Lexer::new("true");
         let token = lexer.next_token().unwrap();
-        match token {
-            Token::Literal(Literal::Bool(b)) => assert!(b),
-            _ => panic!("Expected bool literal"),
-        }
+        assert_eq!(token, Token::Literal(Literal::Bool(true)));
     }
 
     #[test]
     fn test_bool_false() {
         let mut lexer = Lexer::new("false");
         let token = lexer.next_token().unwrap();
-        match token {
-            Token::Literal(Literal::Bool(b)) => assert!(!b),
-            _ => panic!("Expected bool literal"),
-        }
+        assert_eq!(token, Token::Literal(Literal::Bool(false)));
     }
 
     #[test]
@@ -515,19 +488,13 @@ mod test {
         assert!(matches!(token1, Token::Let));
 
         let token2 = lexer.next_token().unwrap();
-        match token2 {
-            Token::Identifier(s) => assert_eq!(s, "x"),
-            _ => panic!("Expected identifier"),
-        }
+        assert_eq!(token2, Token::Identifier("x".to_string()));
 
         let token3 = lexer.next_token().unwrap();
         assert!(matches!(token3, Token::Equals));
 
         let token4 = lexer.next_token().unwrap();
-        match token4 {
-            Token::Literal(Literal::Number(n)) => assert_eq!(n, 42.0),
-            _ => panic!("Expected number"),
-        }
+        assert_eq!(token4, Token::Literal(Literal::Number(42.0)));
 
         let token5 = lexer.next_token().unwrap();
         assert!(matches!(token5, Token::Semicolon));
@@ -542,17 +509,17 @@ mod test {
 
         assert!(matches!(lexer.next_token().unwrap(), Token::Let));
 
-        match lexer.next_token().unwrap() {
-            Token::Identifier(s) => assert_eq!(s, "name"),
-            _ => panic!("Expected identifier"),
-        }
+        assert_eq!(
+            lexer.next_token().unwrap(),
+            Token::Identifier("name".to_string())
+        );
 
         assert!(matches!(lexer.next_token().unwrap(), Token::Equals));
 
-        match lexer.next_token().unwrap() {
-            Token::Literal(Literal::String(s)) => assert_eq!(s, "Alice"),
-            _ => panic!("Expected string"),
-        }
+        assert_eq!(
+            lexer.next_token().unwrap(),
+            Token::Literal(Literal::String("Alice".to_string()))
+        );
 
         assert!(matches!(lexer.next_token().unwrap(), Token::Semicolon));
     }
@@ -586,10 +553,7 @@ mod test {
     fn test_zero() {
         let mut lexer = Lexer::new("0");
         let token = lexer.next_token().unwrap();
-        match token {
-            Token::Literal(Literal::Number(n)) => assert_eq!(n, 0.0),
-            _ => panic!("Expected zero"),
-        }
+        assert_eq!(token, Token::Literal(Literal::Number(0.0)));
     }
 
     #[test]
