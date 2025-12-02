@@ -11,5 +11,13 @@ license = "MIT"
 keywords = ["compiler", "programming-language", "lexer", "parser"]
 categories = ["compilers", "parser-implementations", "development-tools"]
 
+include = [
+    "src/**/*",
+    "Cargo.toml",
+    "../docs/**/*",
+    "../README.md",
+    "../LICENSE*",
+]
+
 [dependencies]
 thiserror = { workspace = true }
