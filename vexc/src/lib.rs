@@ -53,3 +53,5 @@
 ///
 /// See the [module documentation](lexer) for detailed usage.
 pub mod lexer;
+/// yap
+pub mod parser;

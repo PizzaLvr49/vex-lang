@@ -1,0 +1,8 @@
+[package]
+name = "vixen"
+version = "0.0.0"
+edition = "2024"
+description = "Reserve for the Vixen VM"
+license = "MIT OR Apache-2.0"
+
+[dependencies]

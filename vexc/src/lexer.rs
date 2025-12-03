@@ -48,6 +48,16 @@ pub enum Token {
 
     /// The equals sign `=` used for assignment.
     Equals,
+    /// The addition sign `+` used for adding two values
+    Add,
+    /// The subtraction sign `-` used for subtracting two values
+    Sub,
+    /// The division sign `/` used for dividing two values
+    Div,
+    /// The multiplication sign `*` used for multiplying two values
+    Mul,
+    /// The equality operator `==` used for checking equality
+    Eq,
 
     /// An identifier such as a variable name.
     ///
@@ -100,6 +110,10 @@ pub enum LexError {
     /// when the numeric literal has invalid syntax (e.g., multiple decimal points).
     #[error("invalid number literal: {0}")]
     InvalidNumber(#[from] ParseFloatError),
+
+    /// An invalid operator sequence was encountered.
+    #[error("invalid operator: '{0}'")]
+    InvalidOperator(String),
 }
 
 /// A lexical analyzer that converts Vex source text into tokens.
@@ -129,7 +143,7 @@ pub enum LexError {
 /// # Supported Syntax
 ///
 /// - **Keywords**: `let`, `true`, `false`
-/// - **Operators**: `=`
+/// - **Operators**: `=`, `==`, `+`, `-`, `*`, `/`
 /// - **Delimiters**: `;`
 /// - **Literals**: strings (`"..."`), numbers (`42`, `-3.14`), booleans
 /// - **Identifiers**: alphanumeric sequences starting with letter or underscore
@@ -169,6 +183,7 @@ impl<'a> Lexer<'a> {
     /// - An unexpected character is encountered ([`LexError::UnexpectedChar`])
     /// - A string literal is not terminated ([`LexError::UnterminatedString`])
     /// - A number literal is malformed ([`LexError::InvalidNumber`])
+    /// - An invalid operator is encountered ([`LexError::InvalidOperator`])
     ///
     /// # Examples
     ///
@@ -204,14 +219,33 @@ impl<'a> Lexer<'a> {
         };
 
         match ch {
-            '=' => {
-                self.chars.next();
-                Ok(Token::Equals)
+            c if Self::is_operator_char(c) => {
+                let op = self.read_operator();
+                match op.as_str() {
+                    "=" => Ok(Token::Equals),
+                    "==" => Ok(Token::Eq),
+                    _ => Err(LexError::InvalidOperator(op)),
+                }
             }
 
             ';' => {
                 self.chars.next();
                 Ok(Token::Semicolon)
+            }
+
+            '+' => {
+                self.chars.next();
+                Ok(Token::Add)
+            }
+
+            '*' => {
+                self.chars.next();
+                Ok(Token::Mul)
+            }
+
+            '/' => {
+                self.chars.next();
+                Ok(Token::Div)
             }
 
             '"' => {
@@ -227,7 +261,11 @@ impl<'a> Lexer<'a> {
                         let n = self.read_number()?;
                         Ok(Token::Literal(Literal::Number(n)))
                     }
-                    _ => {
+                    Some(_) => {
+                        self.chars.next();
+                        Ok(Token::Sub)
+                    }
+                    None => {
                         self.chars.next();
                         Err(LexError::UnexpectedChar('-'))
                     }
@@ -257,24 +295,39 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    /// Reads an identifier from the current position.
-    ///
-    /// An identifier starts with a letter or underscore and can contain
-    /// letters, digits, and underscores. This method consumes characters
-    /// until a non-identifier character is encountered.
-    fn read_identifier(&mut self) -> String {
-        let mut identifier = String::new();
+    /// Reads a sequence of characters matching the predicate.
+    fn read_while<F>(&mut self, predicate: F) -> String
+    where
+        F: Fn(char) -> bool,
+    {
+        let mut result = String::new();
 
         while let Some(&ch) = self.chars.peek() {
-            if ch.is_alphanumeric() || ch == '_' {
-                identifier.push(ch);
+            if predicate(ch) {
+                result.push(ch);
                 self.chars.next();
             } else {
                 break;
             }
         }
 
-        identifier
+        result
+    }
+
+    /// Reads an identifier from the current position.
+    ///
+    /// An identifier starts with a letter or underscore and can contain
+    /// letters, digits, and underscores. This method consumes characters
+    /// until a non-identifier character is encountered.
+    fn read_identifier(&mut self) -> String {
+        self.read_while(|ch| ch.is_alphanumeric() || ch == '_')
+    }
+
+    /// Reads an operator from the current position.
+    ///
+    /// Operators can be single or multi-character sequences like `=`, `==`, etc.
+    fn read_operator(&mut self) -> String {
+        self.read_while(Self::is_operator_char)
     }
 
     /// Reads a string literal from the current position.
@@ -343,6 +396,11 @@ impl<'a> Lexer<'a> {
                 break;
             }
         }
+    }
+
+    /// Checks if a character is part of a multi-character operator.
+    fn is_operator_char(ch: char) -> bool {
+        matches!(ch, '=')
     }
 }
 
