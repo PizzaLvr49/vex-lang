@@ -21,3 +21,9 @@ include = [
 
 [dependencies]
 thiserror = { workspace = true }
+
+[lints.clippy]
+
+panic = "deny"
+expect_used = "deny"
+unwrap_used = "deny"

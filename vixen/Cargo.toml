@@ -6,3 +6,12 @@ description = "Reserve for the Vixen VM"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
+anyhow = { workspace = true }
+# inkwell = { version = "0.7.1", features = ["llvm21-1-prefer-static"] }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "abort"
