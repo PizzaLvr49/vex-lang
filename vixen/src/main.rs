@@ -1,3 +1,6 @@
+#![expect(incomplete_features, unused)]
+#![feature(explicit_tail_calls)]
+
 use anyhow::{Result, bail};
 
 #[repr(u8)]
@@ -91,6 +94,11 @@ impl Instruction {
             src2: 0,
         }
     }
+
+    #[inline(always)]
+    fn as_u32(self) -> u32 {
+        self.into()
+    }
 }
 
 impl From<Instruction> for u32 {
@@ -117,7 +125,6 @@ impl From<u32> for Instruction {
 
 struct Vm<'a> {
     registers: [i32; 16],
-    ip: usize,
     code: &'a [u32],
     pool: &'a [i32],
 }
@@ -127,79 +134,73 @@ impl<'a> Vm<'a> {
     fn new(code: &'a [u32], pool: &'a [i32]) -> Self {
         Self {
             registers: [0; 16],
-            ip: 0,
             code,
             pool,
         }
     }
 
     #[inline(always)]
-    fn load_const(&mut self, dest: usize, idx: usize) {
-        self.registers[dest] = self.pool[idx];
-    }
+    fn dispatch(&mut self, mut ip: usize) -> Result<()> {
+        if ip >= self.code.len() {
+            return Ok(());
+        }
 
-    #[inline(always)]
-    fn add_i32(&mut self, dest: usize, src1: usize, src2: usize) {
-        self.registers[dest] = self.registers[src1] + self.registers[src2];
-    }
+        let raw = unsafe { *self.code.get_unchecked(ip) };
+        let opcode = (raw >> 24) as u8;
+        let dest = ((raw >> 16) & 0xFF) as usize;
+        let src1 = ((raw >> 8) & 0xFF) as usize;
+        let src2 = (raw & 0xFF) as usize;
 
-    #[inline(always)]
-    fn sub_i32(&mut self, dest: usize, src1: usize, src2: usize) {
-        self.registers[dest] = self.registers[src1] - self.registers[src2];
-    }
-
-    #[inline(always)]
-    fn mul_i32(&mut self, dest: usize, src1: usize, src2: usize) {
-        self.registers[dest] = self.registers[src1] * self.registers[src2];
-    }
-
-    #[inline(always)]
-    fn mov(&mut self, dest: usize, src1: usize) {
-        self.registers[dest] = self.registers[src1];
-    }
-
-    #[inline(always)]
-    fn syscall(&mut self, id: u8) -> Result<()> {
-        match id {
-            0 => {
-                println!("{}", self.registers[0]);
-                Ok(())
+        match opcode {
+            0x01 => {
+                ip += 1;
+                self.registers[dest] = unsafe { *self.pool.get_unchecked(src1) };
+                become self.dispatch(ip)
             }
-            _ => bail!("unknown syscall"),
+            0x02 => {
+                ip += 1;
+                let a = unsafe { *self.registers.get_unchecked(src1) };
+                let b = unsafe { *self.registers.get_unchecked(src2) };
+                unsafe { *self.registers.get_unchecked_mut(dest) = a.wrapping_add(b) };
+                become self.dispatch(ip)
+            }
+            0x03 => {
+                ip += 1;
+                let a = unsafe { *self.registers.get_unchecked(src1) };
+                let b = unsafe { *self.registers.get_unchecked(src2) };
+                unsafe { *self.registers.get_unchecked_mut(dest) = a.wrapping_sub(b) };
+                become self.dispatch(ip)
+            }
+            0x04 => {
+                ip += 1;
+                let a = unsafe { *self.registers.get_unchecked(src1) };
+                let b = unsafe { *self.registers.get_unchecked(src2) };
+                unsafe { *self.registers.get_unchecked_mut(dest) = a.wrapping_mul(b) };
+                become self.dispatch(ip)
+            }
+            0x05 => {
+                ip += 1;
+                let val = unsafe { *self.registers.get_unchecked(src1) };
+                unsafe { *self.registers.get_unchecked_mut(dest) = val };
+                become self.dispatch(ip)
+            }
+            0x10 => {
+                ip += 1;
+                match dest as u8 {
+                    0 => {
+                        println!("{}", self.registers[0]);
+                        become self.dispatch(ip)
+                    }
+                    _ => bail!("unknown syscall: {}", dest),
+                }
+            }
+            0xFF => Ok(()),
+            _ => bail!("unknown opcode: 0x{:02X}", opcode),
         }
     }
 
     fn run(&mut self) -> Result<()> {
-        while self.ip < self.code.len() {
-            let instr: Instruction = self.code[self.ip].into();
-            self.ip += 1;
-
-            match instr.opcode {
-                x if x == Opcode::LoadConst as u8 => {
-                    self.load_const(instr.dest as usize, instr.src1 as usize)
-                }
-                x if x == Opcode::AddI32 as u8 => self.add_i32(
-                    instr.dest as usize,
-                    instr.src1 as usize,
-                    instr.src2 as usize,
-                ),
-                x if x == Opcode::SubI32 as u8 => self.sub_i32(
-                    instr.dest as usize,
-                    instr.src1 as usize,
-                    instr.src2 as usize,
-                ),
-                x if x == Opcode::MulI32 as u8 => self.mul_i32(
-                    instr.dest as usize,
-                    instr.src1 as usize,
-                    instr.src2 as usize,
-                ),
-                x if x == Opcode::Move as u8 => self.mov(instr.dest as usize, instr.src1 as usize),
-                x if x == Opcode::SysCall as u8 => self.syscall(instr.dest)?,
-                x if x == Opcode::Halt as u8 => break,
-                _ => bail!("unknown opcode"),
-            }
-        }
-        Ok(())
+        self.dispatch(0)
     }
 }
 
@@ -207,10 +208,10 @@ fn main() -> Result<()> {
     let pool = [1, 2];
 
     let code = [
-        Instruction::load_const(1, 0).into(),
-        Instruction::load_const(2, 1).into(),
-        Instruction::add(0, 1, 2).into(),
-        Instruction::syscall(0).into(),
+        Instruction::load_const(1, 0).as_u32(),
+        Instruction::load_const(2, 1).as_u32(),
+        Instruction::add(0, 1, 2).as_u32(),
+        Instruction::syscall(0).as_u32(),
     ];
 
     let mut vm = Vm::new(code.as_slice(), pool.as_slice());
