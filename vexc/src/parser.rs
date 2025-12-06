@@ -1,3 +1,5 @@
+#![expect(missing_docs)]
+
 use crate::lexer::{Literal, Token};
 use thiserror::Error;
 

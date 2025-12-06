@@ -2,14 +2,10 @@
 #![feature(explicit_tail_calls)]
 #![feature(trim_prefix_suffix)]
 
-mod assembly;
-
 use core::time;
 use std::time::Instant;
 
 use anyhow::{Result, bail};
-
-use crate::assembly::{Assembler, Disassembler};
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy)]
@@ -24,6 +20,8 @@ enum Opcode {
     Jump = 0x11,
     JumpZero = 0x12,
     JumpNotZero = 0x13,
+    ForNPrep = 0x14,
+    ForNLoop = 0x15,
 
     // Arithmetic
     AddI32 = 0x20,
@@ -167,6 +165,8 @@ impl Instruction {
     instruction_builders!(jump, Opcode::Jump, dest);
     instruction_builders!(jump_zero, Opcode::JumpZero, reg, target);
     instruction_builders!(jump_nz, Opcode::JumpNotZero, reg, target);
+    instruction_builders!(for_n_prep, Opcode::ForNPrep, reg, target);
+    instruction_builders!(for_n_loop, Opcode::ForNLoop, reg, target);
     instruction_builders!(syscall, Opcode::SysCall, dest);
     instruction_builders!(halt, Opcode::Halt);
 
@@ -272,6 +272,25 @@ impl<'a> Vm<'a> {
                     become self.dispatch(ip + 1)
                 }
             }
+            0x14 => {
+                // ForNPrep - dest = counter reg, src1 = loop body target
+                // Initialize counter to 0 and jump to loop body
+                unsafe { *self.registers.get_unchecked_mut(dest) = 0 };
+                become self.dispatch(src1)
+            }
+            0x15 => {
+                // ForNLoop - dest = counter reg, src1 = loop start target
+                // Increment counter and jump back if not done
+                let counter = unsafe { *self.registers.get_unchecked(dest) };
+                let limit = unsafe { *self.registers.get_unchecked(dest + 1) };
+                let new_counter = counter + 1;
+                unsafe { *self.registers.get_unchecked_mut(dest) = new_counter };
+                if new_counter < limit {
+                    become self.dispatch(src1)
+                } else {
+                    become self.dispatch(ip + 1)
+                }
+            }
             0x20 => {
                 // AddI32
                 let a = unsafe { *self.registers.get_unchecked(src1) };
@@ -345,28 +364,26 @@ impl<'a> Vm<'a> {
 }
 
 fn main() -> Result<()> {
-    let source = r#"
-        .const
-            LOOP_MAX = 100000000
-            INC = 3
-            DEC = 1
+    let pool = [1_000_000_000, 2, 0];
 
-        .code
-            load_const r3, LOOP_MAX
-        loop_start:
-            add_const r0, r0, INC
-            sub_const r3, r3, DEC
-            jump_nz r3, loop_start
-            syscall #0
-            halt
-        "#;
-
-    let mut asm = Assembler::new();
-
-    let (code, pool) = asm.assemble(source)?;
-
-    let disasm = Disassembler::new(&code, &pool);
-    println!("Assembled bytecode:\n{}", disasm.disassemble());
+    let code = [
+        // r3 = N (loop limit)
+        Instruction::load_const(3, 0).as_u32(),
+        // r0 = 0 (sum)
+        Instruction::load_const(0, 2).as_u32(),
+        // r4 = 1 (increment constant)
+        Instruction::load_const(4, 1).as_u32(),
+        // FORNPREP r2, 5 -> counter = 0, jump to loop body at 5
+        Instruction::for_n_prep(2, 4).as_u32(),
+        // 4: loop body
+        Instruction::add(0, 0, 4).as_u32(), // r0 += r4
+        // 6: FORNLOOP r2, 5 -> r2++, check r3 (limit)
+        Instruction::for_n_loop(2, 4).as_u32(),
+        // 7: print result
+        Instruction::syscall(0).as_u32(),
+        // 8: halt
+        Instruction::halt().as_u32(),
+    ];
 
     println!("Output:");
 
