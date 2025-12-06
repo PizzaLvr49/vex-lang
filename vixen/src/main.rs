@@ -2,8 +2,10 @@
 #![feature(explicit_tail_calls)]
 #![feature(trim_prefix_suffix)]
 
-use core::time;
-use std::time::Instant;
+use std::{
+    io::{self, Write},
+    time::Instant,
+};
 
 use anyhow::{Result, bail};
 
@@ -198,19 +200,21 @@ impl From<u32> for Instruction {
     }
 }
 
-struct Vm<'a> {
+struct Vm<'a, W: Write> {
     registers: [i32; 16],
     code: &'a [u32],
     pool: &'a [i32],
+    out: W,
 }
 
-impl<'a> Vm<'a> {
+impl<'a, W: Write> Vm<'a, W> {
     #[inline(always)]
-    fn new(code: &'a [u32], pool: &'a [i32]) -> Self {
+    fn new(code: &'a [u32], pool: &'a [i32], out: W) -> Self {
         Self {
             registers: [0; 16],
             code,
             pool,
+            out,
         }
     }
 
@@ -364,35 +368,37 @@ impl<'a> Vm<'a> {
 }
 
 fn main() -> Result<()> {
-    let pool = [1_000_000_000, 2, 0];
+    let pool = [10_000, 2, 0];
 
     let code = [
-        // r3 = N (loop limit)
-        Instruction::load_const(3, 0).as_u32(),
-        // r0 = 0 (sum)
-        Instruction::load_const(0, 2).as_u32(),
-        // r4 = 1 (increment constant)
-        Instruction::load_const(4, 1).as_u32(),
-        // FORNPREP r2, 5 -> counter = 0, jump to loop body at 5
-        Instruction::for_n_prep(2, 4).as_u32(),
-        // 4: loop body
-        Instruction::add(0, 0, 4).as_u32(), // r0 += r4
-        // 6: FORNLOOP r2, 5 -> r2++, check r3 (limit)
-        Instruction::for_n_loop(2, 4).as_u32(),
-        // 7: print result
-        Instruction::syscall(0).as_u32(),
-        // 8: halt
-        Instruction::halt().as_u32(),
+        // 0
+        Instruction::load_const(3, 0).as_u32(), // r3 = 2
+        // 1
+        Instruction::load_const(0, 2).as_u32(), // r0 = 0
+        // 2
+        Instruction::load_const(4, 1).as_u32(), // r4 = 2
+        // 3
+        Instruction::for_n_prep(2, 4).as_u32(), // ???
+        // 4
+        Instruction::add(0, 0, 4).as_u32(), // r0 = r0 + r4
+        // 5
+        Instruction::syscall(0).as_u32(), // print r0
+        // 6
+        Instruction::for_n_loop(2, 4).as_u32(), // ???
+        // 7
+        Instruction::halt().as_u32(), // halt
     ];
 
     println!("Output:");
 
-    let mut vm = Vm::new(&code, &pool);
+    let mut stdout = io::stdout().lock();
+
+    let mut vm = Vm::new(&code, &pool, stdout);
     let timer = Instant::now();
     vm.run()?;
     let time = timer.elapsed();
 
-    println!("\nTook: {:?} to run {} loops", time, pool[0]);
+    println!("\nTook: {:?} to print {} times", time, pool[0]);
 
     Ok(())
 }
