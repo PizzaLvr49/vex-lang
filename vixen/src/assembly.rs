@@ -240,6 +240,13 @@ impl Assembler {
         Ok(n)
     }
 
+    fn parse_id(&self, s: &str) -> Result<u8> {
+        let s = s.trim().trim_prefix('#');
+
+        let v: u8 = s.parse()?;
+        Ok(v)
+    }
+
     fn parse_constant_index(&self, s: &str) -> Result<u8> {
         let s = s.trim().trim_end_matches(',');
 
@@ -302,7 +309,7 @@ impl Assembler {
         if args.len() != 1 {
             bail!("Expected 1 arg");
         }
-        Ok(args[0].parse()?)
+        self.parse_id(args[0])
     }
 
     fn parse_label_or_reg(&self, args: &[&str]) -> Result<LabelOrReg> {
@@ -371,7 +378,7 @@ impl<'a> Disassembler<'a> {
                     out.push_str(&format!("mov r{}, r{}", dest, src1));
                 }
                 0x10 => {
-                    out.push_str(&format!("syscall {}", dest));
+                    out.push_str(&format!("syscall #{}", dest));
                 }
                 0x11 => {
                     out.push_str(&format!("jump {}", dest));

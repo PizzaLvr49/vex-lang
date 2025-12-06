@@ -1,5 +1,6 @@
 #![expect(incomplete_features, unused)]
 #![feature(explicit_tail_calls)]
+#![feature(trim_prefix_suffix)]
 
 mod assembly;
 
@@ -215,10 +216,6 @@ impl<'a> Vm<'a> {
 
     #[inline(always)]
     fn dispatch(&mut self, ip: usize) -> Result<()> {
-        if ip >= self.code.len() {
-            return Ok(());
-        }
-
         let raw = unsafe { *self.code.get_unchecked(ip) };
         let opcode = (raw >> 24) as u8;
         let dest = ((raw >> 16) & 0xFF) as usize;
@@ -350,7 +347,7 @@ impl<'a> Vm<'a> {
 fn main() -> Result<()> {
     let source = r#"
         .const
-            LOOP_MAX = 1000000
+            LOOP_MAX = 100000000
             INC = 3
             DEC = 1
 
@@ -360,7 +357,7 @@ fn main() -> Result<()> {
             add_const r0, r0, INC
             sub_const r3, r3, DEC
             jump_nz r3, loop_start
-            syscall 0
+            syscall #0
             halt
         "#;
 
