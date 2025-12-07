@@ -10,7 +10,11 @@ enum Opcode {
     // Data - Primitives
     LoadConstI32 = 0x01,
     LoadConstI64 = 0x02,
-    LoadConstF64 = 0x03,
+    LoadConstF32 = 0x03,
+    LoadConstF64 = 0x04,
+
+    LoadImmI32 = 0x05,
+    LoadImmF32 = 0x06,
 
     // Heap operations
     AllocString = 0x10, // Allocate string from pool
@@ -105,7 +109,11 @@ impl Instruction {
     // Primitives
     instruction_builders!(load_const_i32, Opcode::LoadConstI32, dest, src1);
     instruction_builders!(load_const_i64, Opcode::LoadConstI64, dest, src1);
+    instruction_builders!(load_const_f32, Opcode::LoadConstF32, dest, src1);
     instruction_builders!(load_const_f64, Opcode::LoadConstF64, dest, src1);
+
+    instruction_builders!(load_imm_i32, Opcode::LoadImmI32, dest);
+    instruction_builders!(load_imm_f32, Opcode::LoadImmF32, dest);
 
     // Heap
     instruction_builders!(alloc_string, Opcode::AllocString, dest, src1);
@@ -336,6 +344,11 @@ impl<'a, W: Write> Vm<'a, W> {
     }
 
     #[inline(always)]
+    fn store_f32(&mut self, reg: usize, val: f32) {
+        self.registers[reg] = (val as f64).to_bits();
+    }
+
+    #[inline(always)]
     fn store_handle(&mut self, reg: usize, handle: u64) {
         self.registers[reg] = handle;
     }
@@ -366,10 +379,30 @@ impl<'a, W: Write> Vm<'a, W> {
                 become self.dispatch(ip + 1)
             }
             0x03 => {
+                // LoadConstF32
+                let val = unsafe { *self.pools.f64_pool.get_unchecked(src1) } as f32;
+                self.store_f32(dest, val);
+                become self.dispatch(ip + 1)
+            }
+            0x04 => {
                 // LoadConstF64
                 let val = unsafe { *self.pools.f64_pool.get_unchecked(src1) };
                 self.store_f64(dest, val);
                 become self.dispatch(ip + 1)
+            }
+
+            0x05 => {
+                // LoadImmI32 - reads next instruction as i32 immediate
+                let imm = unsafe { *self.code.get_unchecked(ip + 1) } as i32;
+                self.store_i32(dest, imm);
+                become self.dispatch(ip + 2)
+            }
+            0x06 => {
+                // LoadImmF32 - reads next instruction as f32 immediate
+                let imm_bits = unsafe { *self.code.get_unchecked(ip + 1) };
+                let val = f32::from_bits(imm_bits);
+                self.store_f32(dest, val);
+                become self.dispatch(ip + 2)
             }
 
             0x10 => {
@@ -576,6 +609,11 @@ fn main() -> Result<()> {
         Instruction::syscall(0).as_u32(),         // print r0
         // Free the concatenated string
         Instruction::drop(3).as_u32(), // drop r3
+        // Test immediate load
+        Instruction::load_imm_i32(4).as_u32(), // r4 = next instruction (42)
+        42u32,                                 // immediate value
+        Instruction::mov(0, 4).as_u32(),       // r0 = r4
+        Instruction::syscall(0).as_u32(),      // print r0
         // Test array
         Instruction::load_const_i32(5, 0).as_u32(), // r5 = 5
         Instruction::alloc_array(6, 5).as_u32(),    // r6 = array[5]
