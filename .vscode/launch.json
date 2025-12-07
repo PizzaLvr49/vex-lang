@@ -1,0 +1,23 @@
+{
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Launch Vixen",
+      "program": "${workspaceFolder}/target/release/vixen.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "sourceLanguages": ["rust"],
+      "preLaunchTask": "rust: cargo build",
+      "terminal": "integrated",
+      "console": "integratedTerminal",
+      "cargo": {
+        "args": ["build", "-p", "vixen", "--release"],
+        "filter": {
+          "name": "vixen",
+          "kind": "bin"
+        }
+      }
+    }
+  ]
+}
