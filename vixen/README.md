@@ -100,4 +100,3 @@ Vixen is currently in active development. Core components being implemented:
 
 - Interpreter with optimized dispatch
 - Standard library design
-- Tooling (assembler, disassembler)
