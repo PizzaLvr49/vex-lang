@@ -40,7 +40,6 @@ enum Opcode {
     Jump = 0x31,
     JumpZero = 0x32,
     JumpNotZero = 0x33,
-    ForNPrep = 0x34,
     ForNLoop = 0x35,
 
     // Arithmetic
@@ -160,7 +159,6 @@ impl Instruction {
     instruction_builders!(jump, Opcode::Jump, dest);
     instruction_builders!(jump_zero, Opcode::JumpZero, dest, src1);
     instruction_builders!(jump_nz, Opcode::JumpNotZero, dest, src1);
-    instruction_builders!(for_n_prep, Opcode::ForNPrep, reg, target);
     instruction_builders!(for_n_loop, Opcode::ForNLoop, reg, target);
 
     instruction_builders!(add_i32, Opcode::AddI32, dest, src1, src2);
@@ -318,7 +316,7 @@ struct ConstantPools<'a> {
 }
 
 struct Vm<'a, W: Write> {
-    registers: [u64; 16],
+    registers: [u64; 256],
     code: &'a [u32],
     pools: ConstantPools<'a>,
     heap: Heap,
@@ -328,7 +326,7 @@ struct Vm<'a, W: Write> {
 impl<'a, W: Write> Vm<'a, W> {
     fn new(code: &'a [u32], pools: ConstantPools<'a>, out: W) -> Self {
         Self {
-            registers: [0; 16],
+            registers: [0; 256],
             code,
             pools,
             heap: Heap::new(),
@@ -570,14 +568,6 @@ impl<'a, W: Write> Vm<'a, W> {
                     become self.dispatch(ip + 1)
                 }
             }
-            0x34 => {
-                // ForNPrep
-                // dest = counter register (initialized to 0)
-                // dest+1 = limit register (already loaded by program)
-                // src1 = index of loop body
-                unsafe { *self.registers.get_unchecked_mut(dest) = 0 };
-                become self.dispatch(src1)
-            }
             0x35 => {
                 // ForNLoop
                 // dest = counter register
@@ -657,15 +647,13 @@ fn main() -> Result<()> {
         // 2
         Instruction::load_const_i32(4, 1).as_u32(), // r4 = pool[1] = 2
         // 3
-        Instruction::for_n_prep(2, 4).as_u32(), // r2 = 0, jump to ip=4 ; r3 holds limit
-        // 4
         Instruction::add_i32(0, 0, 4).as_u32(), // r0 = r0 + r4
-        // 5
+        // 4
         Instruction::syscall(0).as_u32(), // print r0
+        // 5
+        Instruction::for_n_loop(2, 3).as_u32(), // increment r2, loop back to ip=4 if r2 < r3
         // 6
-        Instruction::for_n_loop(2, 4).as_u32(), // increment r2, loop back to ip=4
-        // 7
-        Instruction::halt().as_u32(),
+        Instruction::halt().as_u32(), // halt
     ];
 
     println!("Output:");
